@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AirMath - honest air purifier sizing</title>
+<style>
+  :root { --bg:#0b1310; --card:#122019; --line:#1f3a2c; --ink:#dcf0e4; --dim:#8ab59d; --acc:#5fd69a; }
+  * { box-sizing:border-box; margin:0; }
+  body { background:var(--bg); color:var(--ink); font:15px/1.5 system-ui, sans-serif; padding:32px 18px 64px; }
+  .wrap { max-width:1060px; margin:0 auto; }
+  h1 { font-size:26px; letter-spacing:.5px; }
+  h1 span { color:var(--acc); }
+  .home { float:right; color:var(--dim); text-decoration:none; font-size:13px; margin-top:8px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:22px; margin-top:20px; }
+  .card h2 { font-size:15px; color:var(--dim); font-weight:600; text-transform:uppercase; letter-spacing:1px; margin-bottom:14px; }
+  .row { display:flex; gap:12px; flex-wrap:wrap; }
+  .row > div { flex:1; min-width:150px; }
+  label { display:block; font-size:12px; color:var(--dim); margin-bottom:4px; }
+  input, select { width:100%; background:#0d1a13; border:1px solid var(--line); color:var(--ink); border-radius:8px; padding:9px 10px; font:inherit; }
+  button { background:var(--acc); color:#052514; border:0; border-radius:9px; padding:10px 20px; font:600 15px system-ui; cursor:pointer; }
+  button.ghost { background:#0d1a13; color:var(--acc); border:1px solid var(--line); padding:8px 14px; font-size:13px; }
+  .err { color:#ff8a80; font-size:14px; margin-top:10px; min-height:20px; }
+  .note { color:var(--dim); font-size:12.5px; margin-top:10px; }
+  .verdict { background:#0e2115; border:1px solid #1f5532; border-radius:12px; padding:18px 20px; margin-top:20px; font-size:16px; line-height:1.6; display:none; }
+  .verdict b { color:var(--acc); }
+  .stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px; margin-top:20px; }
+  .stat { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; }
+  .stat .v { font-size:22px; font-weight:700; }
+  .stat .k { color:var(--dim); font-size:12px; margin-top:4px; }
+  .hidden { display:none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="home" href="index.html">home</a>
+  <h1>Air<span>Math</span></h1>
+
+  <div class="card">
+    <h2>The room</h2>
+    <div class="row">
+      <div><label>Area (m2)</label><input id="area" type="number" value="20" min="4" max="200"></div>
+      <div><label>Ceiling (m)</label><input id="ceil" type="number" value="2.5" min="2" max="5" step="0.1"></div>
+      <div><label>What are you fighting?</label><select id="pol"></select></div>
+      <div><label>Air changes per hour</label><input id="ach" type="number" value="4.8" min="1" max="8" step="0.1"></div>
+    </div>
+    <div class="note">4.8 ACH is the AHAM benchmark behind the "two-thirds rule". Allergy guidance says 5+. The box claim on most purifiers assumes 1.5 - a breeze, not a cleanup.</div>
+  </div>
+
+  <div class="card">
+    <h2>A unit you own or are eyeing (optional)</h2>
+    <div class="row">
+      <div><label>Its CADR (cfm)</label><input id="cadr" type="number" placeholder="leave blank to skip" min="20" max="1000"></div>
+    </div>
+    <div class="note">CADR is on the spec sheet, sometimes buried. Use the smoke number if there are three.</div>
+  </div>
+
+  <div style="margin-top:20px; display:flex; gap:10px; flex-wrap:wrap;">
+    <button id="go">Size my purifier</button>
+    <button class="ghost" id="preset1">bedroom, allergies, weak unit</button>
+    <button class="ghost" id="preset2">loft, wildfire season</button>
+  </div>
+  <div class="err" id="err"></div>
+
+  <div class="verdict" id="verdict"></div>
+
+  <div class="stats hidden" id="statsWrap">
+    <div class="stat"><div class="v" id="sReq"></div><div class="k">CADR needed (cfm)</div></div>
+    <div class="stat"><div class="v" id="sClass"></div><div class="k">buy this class</div></div>
+    <div class="stat"><div class="v" id="sRoom"></div><div class="k">room volume</div></div>
+    <div class="stat"><div class="v" id="sAch"></div><div class="k">your unit's real ACH</div></div>
+    <div class="stat"><div class="v" id="sBand"></div><div class="k">your unit's verdict</div></div>
+    <div class="stat"><div class="v" id="sBox"></div><div class="k">what the box claims</div></div>
+  </div>
+
+  <div class="card">
+    <h2>The two-thirds rule and the marketing around it</h2>
+    <p style="font-size:14px;">
+      AHAM's honest rule: <b style="color:var(--acc)">CADR at least two-thirds of the room's square footage</b> gives about 4.8 air changes an hour - enough to matter.
+      The "covers 500 sq ft" on the box assumes the same unit at <b style="color:var(--acc)">1.5 air changes an hour</b>, which moves more marketing than air.
+      Smoke is the smallest common pollutant, so the smoke CADR is the number that tells the truth; pollen is easy and dust is in between.
+      And a big unit on a medium setting beats a small unit screaming at max - same clean air, half the noise.
+    </p>
+  </div>
+</div>
+<script src="engine.js"></script>
+<script>
+(function(){
+  var sel = document.getElementById('pol');
+  Object.keys(AirMathEngine.POLLUTANTS).forEach(function(k){
+    var o = document.createElement('option');
+    o.value = k; o.textContent = AirMathEngine.POLLUTANTS[k].label;
+    sel.appendChild(o);
+  });
+
+  document.getElementById('preset1').addEventListener('click', function(){
+    document.getElementById('area').value = 14;
+    document.getElementById('ceil').value = 2.6;
+    document.getElementById('pol').value = 'pollen';
+    document.getElementById('ach').value = 5;
+    document.getElementById('cadr').value = 80;
+  });
+  document.getElementById('preset2').addEventListener('click', function(){
+    document.getElementById('area').value = 60;
+    document.getElementById('ceil').value = 3.2;
+    document.getElementById('pol').value = 'smoke';
+    document.getElementById('ach').value = 4.8;
+    document.getElementById('cadr').value = '';
+  });
+
+  document.getElementById('go').addEventListener('click', function(){
+    var errEl = document.getElementById('err'); errEl.textContent = '';
+    var r;
+    try {
+      r = AirMathEngine.analyze({
+        areaM2: document.getElementById('area').value,
+        ceilingM: document.getElementById('ceil').value,
+        pollutant: document.getElementById('pol').value,
+        ach: document.getElementById('ach').value,
+        unitCadr: document.getElementById('cadr').value
+      });
+    } catch(e){ errEl.textContent = e.message; return; }
+    document.getElementById('sReq').textContent = r.requiredCadr + ' cfm';
+    document.getElementById('sClass').textContent = r.twoUnits ? '2 x ~' + r.classCadr : r.classCadr + ' cfm';
+    document.getElementById('sRoom').textContent = r.sqft + ' sq ft';
+    document.getElementById('sAch').textContent = r.unit ? r.unit.ach : '-';
+    document.getElementById('sBand').textContent = r.unit ? r.unit.band : 'not given';
+    document.getElementById('sBox').textContent = r.unit ? '~' + r.unit.marketedSqft + ' sq ft' : '-';
+    document.getElementById('statsWrap').classList.remove('hidden');
+    var v = document.getElementById('verdict');
+    v.innerHTML = r.verdict.replace(/(\d+ cfm|decorative|token effort|light duty|proper|allergy-grade|1\.5 air changes an hour|two ~\d+ cfm units)/g, '<b>$1</b>');
+    v.style.display = 'block';
+  });
+})();
+</script>
+</body>
+</html>
